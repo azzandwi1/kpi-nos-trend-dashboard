@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from pathlib import Path
+import re
 
 st.set_page_config(page_title='RealKPI vs NoteUserKPI', layout='wide')
 
@@ -18,6 +19,42 @@ COLOR_ACCENT = '#EE6825'
 COLOR_TEXT = '#1D1D1F'
 COLOR_MUTED = '#5F6368'
 COLOR_BORDER = '#D7D9DE'
+
+MONTH_ORDER = {
+    'jan': 1,
+    'january': 1,
+    'januari': 1,
+    'feb': 2,
+    'february': 2,
+    'februari': 2,
+    'mar': 3,
+    'march': 3,
+    'maret': 3,
+    'apr': 4,
+    'april': 4,
+    'may': 5,
+    'mei': 5,
+    'jun': 6,
+    'june': 6,
+    'juni': 6,
+    'jul': 7,
+    'july': 7,
+    'juli': 7,
+    'aug': 8,
+    'august': 8,
+    'agustus': 8,
+    'sep': 9,
+    'sept': 9,
+    'september': 9,
+    'oct': 10,
+    'october': 10,
+    'oktober': 10,
+    'nov': 11,
+    'november': 11,
+    'dec': 12,
+    'december': 12,
+    'desember': 12,
+}
 
 REAL_COLOR = COLOR_PRIMARY
 NOTE_COLOR = COLOR_ACCENT
@@ -273,6 +310,21 @@ def metric_label(metric_type: str) -> str:
     return str(metric_type)
 
 
+def week_sort_key(week_value: str) -> tuple[int, int, str]:
+    text = str(week_value).strip()
+    match = re.search(r'week\s*(\d+)\s+([a-zA-Z]+)', text, flags=re.IGNORECASE)
+    if not match:
+        return (99, 99, text.lower())
+
+    week_number = int(match.group(1))
+    month_number = MONTH_ORDER.get(match.group(2).lower(), 99)
+    return (month_number, week_number, text.lower())
+
+
+def sort_weeks(weeks: list[str]) -> list[str]:
+    return sorted(weeks, key=week_sort_key)
+
+
 def _filter_popover(label: str, options: list[str], key: str) -> list[str]:
     selected_key = f'{key}_selected'
     widget_key = f'{key}_ms'
@@ -309,7 +361,7 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     categories = sorted(df['KPI Category'].dropna().unique().tolist())
     regions = sorted(df['Region'].dropna().unique().tolist())
     pics = sorted(df['PIC'].dropna().unique().tolist())
-    weeks = sorted(df['Week'].dropna().unique().tolist())
+    weeks = sort_weeks(df['Week'].dropna().unique().tolist())
 
     selected_categories = _filter_popover('Jenis KPI', categories, 'category_filter')
     selected_regions = _filter_popover('Region', regions, 'region_filter')
@@ -372,6 +424,9 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type:
 
 def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
     weekly = aggregate_metrics(df, ['Week'], metric_type)
+    week_order = sort_weeks(weekly['Week'].dropna().unique().tolist())
+    weekly['Week'] = pd.Categorical(weekly['Week'], categories=week_order, ordered=True)
+    weekly = weekly.sort_values('Week')
 
     fig = px.line(
         weekly,
@@ -380,6 +435,7 @@ def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
         markers=True,
         title='Tren Mingguan: RealKPI vs NoteUserKPI',
         color_discrete_sequence=[REAL_COLOR, NOTE_COLOR],
+        category_orders={'Week': week_order},
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True, key=f'{key_prefix}_weekly_line')
@@ -390,6 +446,7 @@ def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
         y='Increase_abs',
         title='Selisih per Minggu',
         color_discrete_sequence=[INC_COLOR],
+        category_orders={'Week': week_order},
     )
     fig_inc.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     if metric_type == 'percentage':
@@ -473,6 +530,10 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix
     if metric_type != 'percentage':
         detail_cols.append('Increase_pct_vs_real')
     detail_df = group_df[detail_cols].copy()
+    detail_week_order = sort_weeks(detail_df['Week'].dropna().unique().tolist())
+    detail_df['Week'] = pd.Categorical(detail_df['Week'], categories=detail_week_order, ordered=True)
+    detail_df = detail_df.sort_values(['Week', 'Region', 'PIC']).reset_index(drop=True)
+    detail_df['Week'] = detail_df['Week'].astype(str)
     detail_df['KPI Category'] = detail_df['KPI Category'].map(category_label)
     detail_df['Direction'] = detail_df['Direction'].map(direction_label)
     if metric_type == 'percentage':
