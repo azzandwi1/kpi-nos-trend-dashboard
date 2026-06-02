@@ -5,8 +5,10 @@ from pathlib import Path
 
 st.set_page_config(page_title='RealKPI vs NoteUserKPI', layout='wide')
 
-DATA_MASTER = Path('MASTER DATA.xlsx')
 DATA_FORMATTING = Path('FORMATTING.xlsx')
+GOOGLE_SHEET_ID = '1NhT6xhkpwaH--kmK7eyAO809BTM37tP54TffD7QLAUM'
+GOOGLE_SHEET_GID = '313890370'
+DATA_MASTER_URL = f'https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid={GOOGLE_SHEET_GID}'
 ID_COLS = ['Region', 'KPI INDICES', 'PIC', 'Kategori']
 
 COLOR_BG = '#F2F3F5'
@@ -59,7 +61,10 @@ def inject_styles() -> None:
             border: 1px solid rgba(134, 40, 128, 0.25);
         }}
         .hero h2 {{ margin: 0; font-size: 28px; letter-spacing: 0.3px; }}
-        .hero h2, .hero p {{ color: #ffffff !important; }}
+        .hero, .hero *, .hero h2, .hero p {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
         .hero p {{ margin: 6px 0 0; opacity: 0.92; }}
         .kpi-card {{
             background: var(--app-card-bg);
@@ -96,14 +101,38 @@ def inject_styles() -> None:
         div[data-baseweb='tag'] {{
             background-color: var(--app-primary) !important;
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        div[data-baseweb='tag'] div {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }}
         div[data-baseweb='tag'],
         div[data-baseweb='tag'] *,
         div[data-baseweb='tag'] span,
+        div[data-baseweb='tag'] p,
         div[data-baseweb='tag'] svg,
         div[data-baseweb='tag'] button {{
             color: #ffffff !important;
             fill: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        div[data-baseweb='tag'] [role='button'],
+        div[data-baseweb='tag'] [aria-label],
+        div[data-baseweb='tag'] path {{
+            color: #ffffff !important;
+            fill: #ffffff !important;
+            stroke: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
+        .stMultiSelect [data-baseweb='tag'],
+        .stMultiSelect [data-baseweb='tag'] *,
+        div[data-testid='stMultiSelect'] [data-baseweb='tag'],
+        div[data-testid='stMultiSelect'] [data-baseweb='tag'] * {{
+            color: #ffffff !important;
+            fill: #ffffff !important;
+            stroke: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }}
         h3, .stSubheader {{
             color: var(--app-text) !important;
@@ -114,9 +143,9 @@ def inject_styles() -> None:
     )
 
 
-@st.cache_data
-def load_data(master_path: Path, formatting_path: Path) -> pd.DataFrame:
-    master_df = pd.read_excel(master_path)
+@st.cache_data(ttl=600)
+def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
+    master_df = pd.read_csv(master_url)
     formatting_df = pd.read_excel(formatting_path)
 
     master_df.columns = [str(c).strip() for c in master_df.columns]
@@ -174,8 +203,8 @@ def load_data(master_path: Path, formatting_path: Path) -> pd.DataFrame:
     df['RealDenom'] = denom_real
     df['NoteDenom'] = denom_note
 
-    df['RealKPI'] = total_os
-    df['NoteUserKPI'] = current_total_os
+    df['RealKPI'] = total_os.astype('float64')
+    df['NoteUserKPI'] = current_total_os.astype('float64')
     pct_mask = df['MetricType'].eq('percentage')
     df.loc[pct_mask, 'RealKPI'] = real_pct[pct_mask]
     df.loc[pct_mask, 'NoteUserKPI'] = note_pct[pct_mask]
@@ -277,31 +306,31 @@ def _filter_popover(label: str, options: list[str], key: str) -> list[str]:
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.header('Filter Dashboard')
 
+    categories = sorted(df['KPI Category'].dropna().unique().tolist())
     regions = sorted(df['Region'].dropna().unique().tolist())
-    indices = sorted(df['KPI INDICES'].dropna().unique().tolist())
     pics = sorted(df['PIC'].dropna().unique().tolist())
     weeks = sorted(df['Week'].dropna().unique().tolist())
 
+    selected_categories = _filter_popover('Jenis KPI', categories, 'category_filter')
     selected_regions = _filter_popover('Region', regions, 'region_filter')
-    selected_indices = _filter_popover('KPI INDICES', indices, 'indices_filter')
     selected_pics = _filter_popover('PIC NOS', pics, 'pic_filter')
     selected_weeks = _filter_popover('Week', weeks, 'week_filter')
 
+    selected_categories = selected_categories if selected_categories else categories
     selected_regions = selected_regions if selected_regions else regions
-    selected_indices = selected_indices if selected_indices else indices
     selected_pics = selected_pics if selected_pics else pics
     selected_weeks = selected_weeks if selected_weeks else weeks
 
     filtered = df[
-        df['Region'].isin(selected_regions)
-        & df['KPI INDICES'].isin(selected_indices)
+        df['KPI Category'].isin(selected_categories)
+        & df['Region'].isin(selected_regions)
         & df['PIC'].isin(selected_pics)
         & df['Week'].isin(selected_weeks)
     ]
     return filtered
 
 
-def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type: str) -> None:
+def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type: str, key_prefix: str) -> None:
     grouped = aggregate_metrics(df, [dim], metric_type).sort_values('Increase_abs', ascending=False)
     display_cols = [dim, 'RealKPI', 'NoteUserKPI', 'Increase_abs']
     if metric_type != 'percentage':
@@ -322,7 +351,7 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type:
         color_discrete_sequence=[REAL_COLOR, NOTE_COLOR],
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=f'{key_prefix}_{dim}_bar')
 
     if metric_type == 'percentage':
         fmt = {
@@ -338,10 +367,10 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type:
             'Selisih (%) vs Real': '{:.2f}%',
         }
 
-    st.dataframe(display_df.style.format(fmt), use_container_width=True)
+    st.dataframe(display_df.style.format(fmt), use_container_width=True, key=f'{key_prefix}_{dim}_table')
 
 
-def trend_weekly(df: pd.DataFrame, metric_type: str) -> None:
+def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
     weekly = aggregate_metrics(df, ['Week'], metric_type)
 
     fig = px.line(
@@ -353,7 +382,7 @@ def trend_weekly(df: pd.DataFrame, metric_type: str) -> None:
         color_discrete_sequence=[REAL_COLOR, NOTE_COLOR],
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=f'{key_prefix}_weekly_line')
 
     fig_inc = px.bar(
         weekly,
@@ -365,23 +394,65 @@ def trend_weekly(df: pd.DataFrame, metric_type: str) -> None:
     fig_inc.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     if metric_type == 'percentage':
         fig_inc.update_yaxes(tickformat='.2%')
-    st.plotly_chart(fig_inc, use_container_width=True)
+    st.plotly_chart(fig_inc, use_container_width=True, key=f'{key_prefix}_weekly_diff')
 
 
-def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix: str) -> None:
+def kpi_card(title: str, value: str, hint: str = '') -> None:
+    st.markdown(
+        f"""
+        <div class='kpi-card'>
+            <div class='kpi-title'>{title}</div>
+            <p class='kpi-value'>{value}</p>
+            <div class='kpi-hint'>{hint}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def show_single_kpi_cards(df: pd.DataFrame, metric_type: str) -> None:
+    summary = aggregate_metrics(df, [], metric_type).iloc[0]
+    real_value = summary['RealKPI']
+    note_value = summary['NoteUserKPI']
+    diff_value = summary['Increase_abs']
+    diff_pct = summary['Increase_pct_vs_real']
+
+    if metric_type == 'percentage':
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            kpi_card('RealKPI', f'{real_value:.2%}', 'Nilai baseline')
+        with c2:
+            kpi_card('NoteUserKPI', f'{note_value:.2%}', 'Nilai setelah note user')
+        with c3:
+            kpi_card('Selisih', f'{diff_value:.2%}', 'NoteUserKPI - RealKPI')
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            kpi_card('RealKPI', f'{real_value:.0f}', 'Total baseline')
+        with c2:
+            kpi_card('NoteUserKPI', f'{note_value:.0f}', 'Total setelah note user')
+        with c3:
+            kpi_card('Selisih', f'{diff_value:.0f}', 'NoteUserKPI - RealKPI')
+        with c4:
+            kpi_card('Selisih vs Real', f'{diff_pct:.2f}%', 'Proporsi selisih terhadap RealKPI')
+
+
+def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix: str, key_prefix: str) -> None:
+    show_single_kpi_cards(group_df, metric_type)
+
     st.markdown('#### Tren Mingguan')
-    trend_weekly(group_df, metric_type)
+    trend_weekly(group_df, metric_type, key_prefix)
 
     col_left, col_right = st.columns(2)
     with col_left:
         st.markdown('#### Per KPI INDICES')
-        comparison_by_dimension(group_df, 'KPI INDICES', f'{title_prefix}: per KPI INDICES', metric_type)
+        comparison_by_dimension(group_df, 'KPI INDICES', f'{title_prefix}: per KPI INDICES', metric_type, key_prefix)
     with col_right:
         st.markdown('#### Per Region')
-        comparison_by_dimension(group_df, 'Region', f'{title_prefix}: per Region', metric_type)
+        comparison_by_dimension(group_df, 'Region', f'{title_prefix}: per Region', metric_type, key_prefix)
 
     st.markdown('#### Per PIC NOS')
-    comparison_by_dimension(group_df, 'PIC', f'{title_prefix}: per PIC NOS', metric_type)
+    comparison_by_dimension(group_df, 'PIC', f'{title_prefix}: per PIC NOS', metric_type, key_prefix)
 
     st.markdown('#### Detail Data')
     detail_cols = [
@@ -417,49 +488,7 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix
             'Increase_abs': '{:.0f}',
             'Increase_pct_vs_real': '{:.2f}%',
         }
-    st.dataframe(detail_df.style.format(fmt), use_container_width=True)
-
-
-def render_category_section(df: pd.DataFrame, category: str) -> None:
-    category_display = category_label(category)
-    subset = df[df['KPI Category'].eq(category)].copy()
-
-    st.subheader(category_display)
-
-    if subset.empty:
-        st.info(f'Tidak ada data {category_display.lower()} pada filter saat ini.')
-        return
-
-    groups = (
-        subset[['MetricType', 'Direction']]
-        .drop_duplicates()
-        .sort_values(['MetricType', 'Direction'])
-        .to_dict('records')
-    )
-
-    group_tabs = st.tabs(
-        [
-            f"{metric_label(g['MetricType'])} - {direction_label(g['Direction'])}"
-            for g in groups
-        ]
-    )
-
-    for tab, group_info in zip(group_tabs, groups):
-        metric_type = group_info['MetricType']
-        direction = group_info['Direction']
-        metric_display = metric_label(metric_type)
-        direction_display = direction_label(direction)
-        group_df = subset[
-            subset['MetricType'].eq(metric_type)
-            & subset['Direction'].eq(direction)
-        ].copy()
-
-        with tab:
-            title_prefix = f'{category_display} - {metric_display} - {direction_display}'
-            st.caption(
-                f'{metric_display}. {direction_display}: nilai KPI yang bergerak ke arah ini dianggap lebih baik.'
-            )
-            render_analysis_block(group_df, metric_type, title_prefix)
+    st.dataframe(detail_df.style.format(fmt), use_container_width=True, key=f'{key_prefix}_detail_table')
 
 
 def main() -> None:
@@ -469,28 +498,47 @@ def main() -> None:
         """
         <div class='hero'>
             <h2>Dashboard Perbandingan RealKPI vs NoteUserKPI</h2>
-            <p>Pemisahan metrik Percentage dan Absolute agar analisis tidak tercampur</p>
+            <p>Analisis tren dan selisih KPI NOS per indeks, region, PIC, dan minggu</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if not DATA_MASTER.exists() or not DATA_FORMATTING.exists():
-        st.error('File MASTER DATA.xlsx atau FORMATTING.xlsx tidak ditemukan di folder aplikasi.')
+    if not DATA_FORMATTING.exists():
+        st.error('File FORMATTING.xlsx tidak ditemukan di folder aplikasi.')
         st.stop()
 
-    df = load_data(DATA_MASTER, DATA_FORMATTING)
+    try:
+        df = load_data(DATA_MASTER_URL, DATA_FORMATTING)
+    except Exception as exc:
+        st.error(f'Gagal membaca data dari Google Sheets: {exc}')
+        st.stop()
     filtered = apply_filters(df)
 
     if filtered.empty:
         st.warning('Tidak ada data setelah filter diterapkan.')
         st.stop()
 
-    categories = sorted(filtered['KPI Category'].dropna().unique().tolist())
-    category_tabs = st.tabs([category_label(category) for category in categories])
-    for tab, category in zip(category_tabs, categories):
+    indices = sorted(filtered['KPI INDICES'].dropna().unique().tolist())
+    kpi_tabs = st.tabs(indices)
+
+    for i, (tab, kpi_index) in enumerate(zip(kpi_tabs, indices)):
         with tab:
-            render_category_section(filtered, category)
+            kpi_df = filtered[filtered['KPI INDICES'].eq(kpi_index)].copy()
+            meta = kpi_df.iloc[0]
+            metric_type = meta['MetricType']
+            title_prefix = (
+                f"{kpi_index} - {category_label(meta['KPI Category'])} - "
+                f"{metric_label(metric_type)} - {direction_label(meta['Direction'])}"
+            )
+
+            st.subheader(kpi_index)
+            st.caption(
+                f"{category_label(meta['KPI Category'])}. "
+                f"{metric_label(metric_type)}. "
+                f"{direction_label(meta['Direction'])}: nilai KPI yang bergerak ke arah target dianggap lebih baik."
+            )
+            render_analysis_block(kpi_df, metric_type, title_prefix, key_prefix=f'kpi_{i}')
 
 
 if __name__ == '__main__':
