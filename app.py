@@ -347,6 +347,14 @@ def sort_weeks(weeks: list[str]) -> list[str]:
     return sorted(weeks, key=week_sort_key)
 
 
+def apply_metric_axis_format(fig, metric_type: str, value_format: str | None = None):
+    if metric_type == 'percentage':
+        hover_format = value_format or '.2%'
+        fig.update_yaxes(tickformat='.2%')
+        fig.update_traces(hovertemplate='%{x}<br>%{fullData.name}: %{y:' + hover_format + '}<extra></extra>')
+    return fig
+
+
 def _filter_popover(label: str, options: list[str], key: str) -> list[str]:
     selected_key = f'{key}_selected'
     widget_key = f'{key}_ms'
@@ -425,6 +433,7 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type:
         color_discrete_sequence=[REAL_COLOR, NOTE_COLOR],
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    apply_metric_axis_format(fig, metric_type)
     st.plotly_chart(fig, use_container_width=True, key=f'{key_prefix}_{dim}_bar')
 
     if metric_type == 'percentage':
@@ -460,6 +469,7 @@ def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
         category_orders={'Week': week_order},
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    apply_metric_axis_format(fig, metric_type)
     st.plotly_chart(fig, use_container_width=True, key=f'{key_prefix}_weekly_line')
 
     fig_inc = px.bar(
@@ -472,7 +482,7 @@ def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
     )
     fig_inc.update_layout(showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     if metric_type == 'percentage':
-        fig_inc.update_yaxes(tickformat='.2%')
+        apply_metric_axis_format(fig_inc, metric_type)
     st.plotly_chart(fig_inc, use_container_width=True, key=f'{key_prefix}_weekly_diff')
 
 
