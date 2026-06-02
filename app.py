@@ -332,6 +332,15 @@ def metric_label(metric_type: str) -> str:
     return str(metric_type)
 
 
+def direction_context(direction: str) -> str:
+    normalized = str(direction).strip().lower()
+    if normalized == 'higher better':
+        return 'Nilai lebih besar menunjukkan performa lebih baik.'
+    if normalized == 'lower better':
+        return 'Nilai lebih kecil menunjukkan performa lebih baik.'
+    return 'Gunakan selisih untuk membaca perubahan antara RealKPI dan NoteUserKPI.'
+
+
 def week_sort_key(week_value: str) -> tuple[int, int, str]:
     text = str(week_value).strip()
     match = re.search(r'week\s*(\d+)\s+([a-zA-Z]+)', text, flags=re.IGNORECASE)
@@ -412,7 +421,7 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
-def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type: str, key_prefix: str) -> None:
+def comparison_by_dimension(df: pd.DataFrame, dim: str, chart_title: str, metric_type: str, key_prefix: str) -> None:
     grouped = aggregate_metrics(df, [dim], metric_type).sort_values('Increase_abs', ascending=False)
     display_cols = [dim, 'RealKPI', 'NoteUserKPI', 'Increase_abs']
     if metric_type != 'percentage':
@@ -429,7 +438,7 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, title: str, metric_type:
         x=dim,
         y=['RealKPI', 'NoteUserKPI'],
         barmode='group',
-        title=title,
+        title=chart_title,
         color_discrete_sequence=[REAL_COLOR, NOTE_COLOR],
     )
     fig.update_layout(legend_title_text='Data', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
@@ -526,22 +535,27 @@ def show_single_kpi_cards(df: pd.DataFrame, metric_type: str) -> None:
             kpi_card('Selisih vs Real', f'{diff_pct:.2f}%', 'Proporsi selisih terhadap RealKPI')
 
 
-def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix: str, key_prefix: str) -> None:
+def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: str, key_prefix: str) -> None:
     show_single_kpi_cards(group_df, metric_type)
+    direction_note = direction_context(direction)
 
     st.markdown('#### Tren Mingguan')
+    st.caption(f'Membandingkan RealKPI dan NoteUserKPI dari minggu ke minggu. {direction_note}')
     trend_weekly(group_df, metric_type, key_prefix)
 
     col_left, col_right = st.columns(2)
     with col_left:
         st.markdown('#### Per KPI INDICES')
-        comparison_by_dimension(group_df, 'KPI INDICES', f'{title_prefix}: per KPI INDICES', metric_type, key_prefix)
+        st.caption(f'Ringkasan nilai KPI pada indeks yang sedang dibuka. {direction_note}')
+        comparison_by_dimension(group_df, 'KPI INDICES', 'Ringkasan RealKPI vs NoteUserKPI', metric_type, key_prefix)
     with col_right:
         st.markdown('#### Per Region')
-        comparison_by_dimension(group_df, 'Region', f'{title_prefix}: per Region', metric_type, key_prefix)
+        st.caption(f'Membandingkan nilai KPI antar region untuk melihat area yang paling terdampak note user. {direction_note}')
+        comparison_by_dimension(group_df, 'Region', 'Perbandingan antar Region', metric_type, key_prefix)
 
     st.markdown('#### Per PIC NOS')
-    comparison_by_dimension(group_df, 'PIC', f'{title_prefix}: per PIC NOS', metric_type, key_prefix)
+    st.caption(f'Membandingkan nilai KPI antar PIC NOS untuk melihat perubahan terbesar setelah note user. {direction_note}')
+    comparison_by_dimension(group_df, 'PIC', 'Perbandingan antar PIC NOS', metric_type, key_prefix)
 
     st.markdown('#### Detail Data')
     detail_cols = [
@@ -621,18 +635,15 @@ def main() -> None:
             kpi_df = filtered[filtered['KPI INDICES'].eq(kpi_index)].copy()
             meta = kpi_df.iloc[0]
             metric_type = meta['MetricType']
-            title_prefix = (
-                f"{kpi_index} - {category_label(meta['KPI Category'])} - "
-                f"{metric_label(metric_type)} - {direction_label(meta['Direction'])}"
-            )
 
             st.subheader(kpi_index)
             st.caption(
                 f"{category_label(meta['KPI Category'])}. "
                 f"{metric_label(metric_type)}. "
-                f"{direction_label(meta['Direction'])}: nilai KPI yang bergerak ke arah target dianggap lebih baik."
+                f"{direction_label(meta['Direction'])}. "
+                f"{direction_context(meta['Direction'])}"
             )
-            render_analysis_block(kpi_df, metric_type, title_prefix, key_prefix=f'kpi_{i}')
+            render_analysis_block(kpi_df, metric_type, meta['Direction'], key_prefix=f'kpi_{i}')
 
 
 if __name__ == '__main__':
