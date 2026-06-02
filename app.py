@@ -7,8 +7,8 @@ import re
 st.set_page_config(page_title='RealKPI vs NoteUserKPI', layout='wide')
 
 DATA_FORMATTING = Path('FORMATTING.xlsx')
-GOOGLE_SHEET_ID = '1NhT6xhkpwaH--kmK7eyAO809BTM37tP54TffD7QLAUM'
-GOOGLE_SHEET_GID = '313890370'
+GOOGLE_SHEET_ID = '1Mf50M-DCcC0hPXUZd_BMcQNAVKnSudxAUjoNAT_ztys'
+GOOGLE_SHEET_GID = '596317790'
 DATA_MASTER_URL = f'https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid={GOOGLE_SHEET_GID}'
 ID_COLS = ['Region', 'KPI INDICES', 'PIC', 'Kategori']
 
