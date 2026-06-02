@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+~$*.xlsx
+~$*.xls
+~$*.xlsm
+.streamlit/secrets.toml
