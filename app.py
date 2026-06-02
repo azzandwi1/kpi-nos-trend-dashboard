@@ -11,6 +11,10 @@ GOOGLE_SHEET_ID = '1Mf50M-DCcC0hPXUZd_BMcQNAVKnSudxAUjoNAT_ztys'
 GOOGLE_SHEET_GID = '596317790'
 DATA_MASTER_URL = f'https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid={GOOGLE_SHEET_GID}'
 ID_COLS = ['Region', 'KPI INDICES', 'PIC', 'Kategori']
+OVERTIME_OVER_ONTIME_KPIS = {
+    'tingkat return',
+    'tingkat investigasi kalah',
+}
 
 COLOR_BG = '#F2F3F5'
 COLOR_CARD = '#FFFFFF'
@@ -231,6 +235,8 @@ def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
 
     real_pct = on_time.div(denom_real.where(denom_real.ne(0)))
     note_pct = on_time.div(denom_note.where(denom_note.ne(0)))
+    overtime_rate_real = over_time.div(on_time.where(on_time.ne(0)))
+    overtime_rate_note = current_over_time.div(on_time.where(on_time.ne(0)))
 
     df['ON TIME'] = on_time
     df['OVER TIME'] = over_time
@@ -239,12 +245,18 @@ def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
     df['Current TOTAL OS'] = current_total_os
     df['RealDenom'] = denom_real
     df['NoteDenom'] = denom_note
+    df['CalculationType'] = 'ontime_over_total'
+    special_pct_mask = df['KPI INDICES'].astype(str).str.strip().str.lower().isin(OVERTIME_OVER_ONTIME_KPIS)
+    df.loc[special_pct_mask, 'CalculationType'] = 'overtime_over_ontime'
 
     df['RealKPI'] = total_os.astype('float64')
     df['NoteUserKPI'] = current_total_os.astype('float64')
     pct_mask = df['MetricType'].eq('percentage')
     df.loc[pct_mask, 'RealKPI'] = real_pct[pct_mask]
     df.loc[pct_mask, 'NoteUserKPI'] = note_pct[pct_mask]
+    special_pct_mask = pct_mask & special_pct_mask
+    df.loc[special_pct_mask, 'RealKPI'] = overtime_rate_real[special_pct_mask]
+    df.loc[special_pct_mask, 'NoteUserKPI'] = overtime_rate_note[special_pct_mask]
 
     df['Increase_abs'] = df['NoteUserKPI'] - df['RealKPI']
     df['Increase_pct_vs_real'] = df['Increase_abs'].div(df['RealKPI'].where(df['RealKPI'].ne(0))) * 100
@@ -255,19 +267,29 @@ def aggregate_metrics(df: pd.DataFrame, group_cols: list[str], metric_type: str)
     grouped = df.groupby(group_cols, as_index=False) if group_cols else None
 
     if metric_type == 'percentage':
+        is_overtime_rate = (
+            'CalculationType' in df.columns
+            and df['CalculationType'].eq('overtime_over_ontime').all()
+        )
         if grouped is None:
             agg = pd.DataFrame(
                 {
                     'ON TIME': [df['ON TIME'].sum()],
+                    'OVER TIME': [df['OVER TIME'].sum()],
+                    'Current OVER TIME': [df['Current OVER TIME'].sum()],
                     'RealDenom': [df['RealDenom'].sum()],
                     'NoteDenom': [df['NoteDenom'].sum()],
                 }
             )
         else:
-            agg = grouped[['ON TIME', 'RealDenom', 'NoteDenom']].sum()
+            agg = grouped[['ON TIME', 'OVER TIME', 'Current OVER TIME', 'RealDenom', 'NoteDenom']].sum()
 
-        agg['RealKPI'] = agg['ON TIME'].div(agg['RealDenom'].where(agg['RealDenom'].ne(0)))
-        agg['NoteUserKPI'] = agg['ON TIME'].div(agg['NoteDenom'].where(agg['NoteDenom'].ne(0)))
+        if is_overtime_rate:
+            agg['RealKPI'] = agg['OVER TIME'].div(agg['ON TIME'].where(agg['ON TIME'].ne(0)))
+            agg['NoteUserKPI'] = agg['Current OVER TIME'].div(agg['ON TIME'].where(agg['ON TIME'].ne(0)))
+        else:
+            agg['RealKPI'] = agg['ON TIME'].div(agg['RealDenom'].where(agg['RealDenom'].ne(0)))
+            agg['NoteUserKPI'] = agg['ON TIME'].div(agg['NoteDenom'].where(agg['NoteDenom'].ne(0)))
     else:
         if grouped is None:
             agg = pd.DataFrame(
@@ -521,6 +543,7 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, title_prefix
         'Kategori',
         'Week',
         'MetricType',
+        'CalculationType',
         'FormatLabel',
         'MetricFormat',
         'RealKPI',
