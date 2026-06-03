@@ -399,16 +399,23 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
 
     categories = sorted(df['KPI Category'].dropna().unique().tolist())
     regions = sorted(df['Region'].dropna().unique().tolist())
-    pics = sorted(df['PIC'].dropna().unique().tolist())
     weeks = sort_weeks(df['Week'].dropna().unique().tolist())
 
     selected_categories = _filter_popover('Jenis KPI', categories, 'category_filter')
     selected_regions = _filter_popover('Region', regions, 'region_filter')
+
+    active_categories = selected_categories if selected_categories else categories
+    active_regions = selected_regions if selected_regions else regions
+    pic_source = df[
+        df['KPI Category'].isin(active_categories)
+        & df['Region'].isin(active_regions)
+    ]
+    pics = sorted(pic_source['PIC'].dropna().unique().tolist())
     selected_pics = _filter_popover('PIC NOS', pics, 'pic_filter')
     selected_weeks = _filter_popover('Week', weeks, 'week_filter')
 
-    selected_categories = selected_categories if selected_categories else categories
-    selected_regions = selected_regions if selected_regions else regions
+    selected_categories = active_categories
+    selected_regions = active_regions
     selected_pics = selected_pics if selected_pics else pics
     selected_weeks = selected_weeks if selected_weeks else weeks
 
