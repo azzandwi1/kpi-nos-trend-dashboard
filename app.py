@@ -184,7 +184,7 @@ def inject_styles() -> None:
     )
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600)
 def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
     master_df = pd.read_csv(master_url)
     formatting_df = pd.read_excel(formatting_path)
