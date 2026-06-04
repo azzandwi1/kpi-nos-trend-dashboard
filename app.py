@@ -408,6 +408,23 @@ def _filter_popover(label: str, options: list[str], key: str) -> list[str]:
     return st.session_state[selected_key]
 
 
+def render_feedback_button() -> None:
+    feedback_ready = bool(FEEDBACK_FORM_URL.strip())
+    st.sidebar.divider()
+    st.sidebar.caption('Masukan aplikasi')
+    st.sidebar.link_button(
+        'Kirim Saran',
+        FEEDBACK_FORM_URL if feedback_ready else 'https://docs.google.com/forms/',
+        help='Beri saran atau masukan untuk peningkatan dashboard.',
+        type='primary',
+        icon=':material/rate_review:',
+        use_container_width=True,
+        disabled=not feedback_ready,
+    )
+    if not feedback_ready:
+        st.sidebar.caption('Isi FEEDBACK_FORM_URL untuk mengaktifkan tombol.')
+
+
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.header('Filter Dashboard')
 
@@ -427,6 +444,7 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     pics = sorted(pic_source['PIC'].dropna().unique().tolist())
     selected_pics = _filter_popover('PIC NOS', pics, 'pic_filter')
     selected_weeks = _filter_popover('Week', weeks, 'week_filter')
+    render_feedback_button()
 
     selected_categories = active_categories
     selected_regions = active_regions
@@ -655,30 +673,15 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: s
 def main() -> None:
     inject_styles()
 
-    hero_col, feedback_col = st.columns([4, 1])
-    with hero_col:
-        st.markdown(
-            """
-            <div class='hero'>
-                <h2>Dashboard Perbandingan RealKPI vs NoteUserKPI</h2>
-                <p>Analisis tren dan selisih KPI NOS per indeks, region, PIC, dan minggu</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with feedback_col:
-        feedback_ready = bool(FEEDBACK_FORM_URL.strip())
-        st.link_button(
-            'Kirim Saran',
-            FEEDBACK_FORM_URL if feedback_ready else 'https://docs.google.com/forms/',
-            help='Beri saran atau masukan untuk peningkatan dashboard.',
-            type='primary',
-            icon=':material/rate_review:',
-            use_container_width=True,
-            disabled=not feedback_ready,
-        )
-        if not feedback_ready:
-            st.caption('Isi FEEDBACK_FORM_URL untuk mengaktifkan tombol.')
+    st.markdown(
+        """
+        <div class='hero'>
+            <h2>Dashboard Perbandingan RealKPI vs NoteUserKPI</h2>
+            <p>Analisis tren dan selisih KPI NOS per indeks, region, PIC, dan minggu</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if not DATA_FORMATTING.exists():
         st.error('File FORMATTING.xlsx tidak ditemukan di folder aplikasi.')
