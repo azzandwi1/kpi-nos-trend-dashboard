@@ -10,7 +10,7 @@ DATA_FORMATTING = Path('FORMATTING.xlsx')
 GOOGLE_SHEET_ID = '1Mf50M-DCcC0hPXUZd_BMcQNAVKnSudxAUjoNAT_ztys'
 GOOGLE_SHEET_GID = '596317790'
 DATA_MASTER_URL = f'https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid={GOOGLE_SHEET_GID}'
-FEEDBACK_FORM_URL = ''
+FEEDBACK_FORM_URL = 'https://forms.gle/tbgaSbY19z4Euqxf7'
 ID_COLS = ['Region', 'KPI INDICES', 'PIC', 'Kategori']
 OVERTIME_OVER_ONTIME_KPIS = {
     'tingkat return',
