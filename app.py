@@ -10,6 +10,7 @@ DATA_FORMATTING = Path('FORMATTING.xlsx')
 GOOGLE_SHEET_ID = '1Mf50M-DCcC0hPXUZd_BMcQNAVKnSudxAUjoNAT_ztys'
 GOOGLE_SHEET_GID = '596317790'
 DATA_MASTER_URL = f'https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid={GOOGLE_SHEET_GID}'
+FEEDBACK_FORM_URL = ''
 ID_COLS = ['Region', 'KPI INDICES', 'PIC', 'Kategori']
 OVERTIME_OVER_ONTIME_KPIS = {
     'tingkat return',
@@ -654,15 +655,30 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: s
 def main() -> None:
     inject_styles()
 
-    st.markdown(
-        """
-        <div class='hero'>
-            <h2>Dashboard Perbandingan RealKPI vs NoteUserKPI</h2>
-            <p>Analisis tren dan selisih KPI NOS per indeks, region, PIC, dan minggu</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    hero_col, feedback_col = st.columns([4, 1])
+    with hero_col:
+        st.markdown(
+            """
+            <div class='hero'>
+                <h2>Dashboard Perbandingan RealKPI vs NoteUserKPI</h2>
+                <p>Analisis tren dan selisih KPI NOS per indeks, region, PIC, dan minggu</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with feedback_col:
+        feedback_ready = bool(FEEDBACK_FORM_URL.strip())
+        st.link_button(
+            'Kirim Saran',
+            FEEDBACK_FORM_URL if feedback_ready else 'https://docs.google.com/forms/',
+            help='Beri saran atau masukan untuk peningkatan dashboard.',
+            type='primary',
+            icon=':material/rate_review:',
+            use_container_width=True,
+            disabled=not feedback_ready,
+        )
+        if not feedback_ready:
+            st.caption('Isi FEEDBACK_FORM_URL untuk mengaktifkan tombol.')
 
     if not DATA_FORMATTING.exists():
         st.error('File FORMATTING.xlsx tidak ditemukan di folder aplikasi.')
