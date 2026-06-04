@@ -179,6 +179,41 @@ def inject_styles() -> None:
         h3, .stSubheader {{
             color: var(--app-text) !important;
         }}
+        .feedback-sidebar {{
+            margin-top: 96px;
+            position: sticky;
+            bottom: 18px;
+            z-index: 5;
+        }}
+        .feedback-sidebar-label {{
+            color: var(--app-subtext) !important;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }}
+        .feedback-sidebar-button {{
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, var(--app-primary), var(--app-accent));
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            text-align: center;
+            text-decoration: none !important;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(134, 40, 128, 0.22);
+        }}
+        .feedback-sidebar-button:hover {{
+            filter: brightness(1.04);
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            text-decoration: none !important;
+        }}
+        .feedback-sidebar-button * {{
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -410,19 +445,20 @@ def _filter_popover(label: str, options: list[str], key: str) -> list[str]:
 
 def render_feedback_button() -> None:
     feedback_ready = bool(FEEDBACK_FORM_URL.strip())
-    st.sidebar.divider()
-    st.sidebar.caption('Masukan aplikasi')
-    st.sidebar.link_button(
-        'Kirim Saran',
-        FEEDBACK_FORM_URL if feedback_ready else 'https://docs.google.com/forms/',
-        help='Beri saran atau masukan untuk peningkatan dashboard.',
-        type='primary',
-        icon=':material/rate_review:',
-        use_container_width=True,
-        disabled=not feedback_ready,
+    feedback_url = FEEDBACK_FORM_URL if feedback_ready else '#'
+    disabled_note = '' if feedback_ready else '<div class="feedback-sidebar-label">Isi FEEDBACK_FORM_URL untuk mengaktifkan tombol.</div>'
+    st.sidebar.markdown(
+        f"""
+        <div class="feedback-sidebar">
+            <div class="feedback-sidebar-label">Masukan aplikasi</div>
+            <a class="feedback-sidebar-button" href="{feedback_url}" target="_blank" rel="noopener noreferrer">
+                Kirim Saran
+            </a>
+            {disabled_note}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    if not feedback_ready:
-        st.sidebar.caption('Isi FEEDBACK_FORM_URL untuk mengaktifkan tombol.')
 
 
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
