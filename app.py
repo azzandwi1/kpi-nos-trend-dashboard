@@ -341,6 +341,19 @@ def direction_context(direction: str) -> str:
     return 'Gunakan selisih untuk membaca perubahan antara RealKPI dan NoteUserKPI.'
 
 
+def add_ranking(df: pd.DataFrame, direction: str) -> pd.DataFrame:
+    ranked = df.copy()
+    note_ascending = str(direction).strip().lower() == 'lower better'
+    ranked['_RankDiffAbs'] = ranked['Increase_abs'].abs()
+    ranked = ranked.sort_values(
+        ['NoteUserKPI', '_RankDiffAbs'],
+        ascending=[note_ascending, True],
+        na_position='last',
+    ).reset_index(drop=True)
+    ranked.insert(0, 'Ranking', range(1, len(ranked) + 1))
+    return ranked.drop(columns=['_RankDiffAbs'])
+
+
 def week_sort_key(week_value: str) -> tuple[int, int, str]:
     text = str(week_value).strip()
     match = re.search(r'week\s*(\d+)\s+([a-zA-Z]+)', text, flags=re.IGNORECASE)
@@ -428,9 +441,16 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
-def comparison_by_dimension(df: pd.DataFrame, dim: str, chart_title: str, metric_type: str, key_prefix: str) -> None:
-    grouped = aggregate_metrics(df, [dim], metric_type).sort_values('Increase_abs', ascending=False)
-    display_cols = [dim, 'RealKPI', 'NoteUserKPI', 'Increase_abs']
+def comparison_by_dimension(
+    df: pd.DataFrame,
+    dim: str,
+    chart_title: str,
+    metric_type: str,
+    direction: str,
+    key_prefix: str,
+) -> None:
+    grouped = add_ranking(aggregate_metrics(df, [dim], metric_type), direction)
+    display_cols = ['Ranking', dim, 'RealKPI', 'NoteUserKPI', 'Increase_abs']
     if metric_type != 'percentage':
         display_cols.append('Increase_pct_vs_real')
     display_df = grouped[display_cols].rename(
@@ -466,7 +486,12 @@ def comparison_by_dimension(df: pd.DataFrame, dim: str, chart_title: str, metric
             'Selisih (%) vs Real': '{:.2f}%',
         }
 
-    st.dataframe(display_df.style.format(fmt), use_container_width=True, key=f'{key_prefix}_{dim}_table')
+    st.dataframe(
+        display_df.style.format(fmt),
+        use_container_width=True,
+        hide_index=True,
+        key=f'{key_prefix}_{dim}_table',
+    )
 
 
 def trend_weekly(df: pd.DataFrame, metric_type: str, key_prefix: str) -> None:
@@ -554,15 +579,29 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: s
     with col_left:
         st.markdown('#### Per KPI INDICES')
         st.caption(f'Ringkasan nilai KPI pada indeks yang sedang dibuka. {direction_note}')
-        comparison_by_dimension(group_df, 'KPI INDICES', 'Ringkasan RealKPI vs NoteUserKPI', metric_type, key_prefix)
+        comparison_by_dimension(
+            group_df,
+            'KPI INDICES',
+            'Ringkasan RealKPI vs NoteUserKPI',
+            metric_type,
+            direction,
+            key_prefix,
+        )
     with col_right:
         st.markdown('#### Per Region')
         st.caption(f'Membandingkan nilai KPI antar region untuk melihat area yang paling terdampak note user. {direction_note}')
-        comparison_by_dimension(group_df, 'Region', 'Perbandingan antar Region', metric_type, key_prefix)
+        comparison_by_dimension(
+            group_df,
+            'Region',
+            'Perbandingan antar Region',
+            metric_type,
+            direction,
+            key_prefix,
+        )
 
     st.markdown('#### Per PIC NOS')
     st.caption(f'Membandingkan nilai KPI antar PIC NOS untuk melihat perubahan terbesar setelah note user. {direction_note}')
-    comparison_by_dimension(group_df, 'PIC', 'Perbandingan antar PIC NOS', metric_type, key_prefix)
+    comparison_by_dimension(group_df, 'PIC', 'Perbandingan antar PIC NOS', metric_type, direction, key_prefix)
 
     st.markdown('#### Detail Data')
     detail_cols = [
@@ -587,6 +626,7 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: s
     detail_week_order = sort_weeks(detail_df['Week'].dropna().unique().tolist())
     detail_df['Week'] = pd.Categorical(detail_df['Week'], categories=detail_week_order, ordered=True)
     detail_df = detail_df.sort_values(['Week', 'Region', 'PIC']).reset_index(drop=True)
+    detail_df = add_ranking(detail_df, direction)
     detail_df['Week'] = detail_df['Week'].astype(str)
     detail_df['KPI Category'] = detail_df['KPI Category'].map(category_label)
     detail_df['Direction'] = detail_df['Direction'].map(direction_label)
@@ -603,7 +643,12 @@ def render_analysis_block(group_df: pd.DataFrame, metric_type: str, direction: s
             'Increase_abs': '{:.0f}',
             'Increase_pct_vs_real': '{:.2f}%',
         }
-    st.dataframe(detail_df.style.format(fmt), use_container_width=True, key=f'{key_prefix}_detail_table')
+    st.dataframe(
+        detail_df.style.format(fmt),
+        use_container_width=True,
+        hide_index=True,
+        key=f'{key_prefix}_detail_table',
+    )
 
 
 def main() -> None:
