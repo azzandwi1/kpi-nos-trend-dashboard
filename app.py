@@ -123,6 +123,14 @@ def inject_styles() -> None:
             background: var(--sidebar-bg);
             border-right: 1px solid var(--app-card-border);
         }}
+        div[data-testid='stSidebar'] > div {{
+            min-height: 100vh;
+        }}
+        div[data-testid='stSidebar'] div[data-testid='stVerticalBlock'] {{
+            min-height: calc(100vh - 72px);
+            display: flex;
+            flex-direction: column;
+        }}
         button[data-baseweb='tab'] {{
             color: var(--tab-text) !important;
         }}
@@ -180,32 +188,31 @@ def inject_styles() -> None:
             color: var(--app-text) !important;
         }}
         .feedback-sidebar {{
-            margin-top: 96px;
-            position: sticky;
-            bottom: 18px;
-            z-index: 5;
-        }}
-        .feedback-sidebar-label {{
-            color: var(--app-subtext) !important;
-            font-size: 12px;
-            margin-bottom: 8px;
+            margin-top: auto;
+            padding-bottom: 18px;
         }}
         .feedback-sidebar-button {{
+            position: relative;
             display: block;
             width: 100%;
             box-sizing: border-box;
-            padding: 12px 14px;
-            border-radius: 10px;
-            background: linear-gradient(90deg, var(--app-primary), var(--app-accent));
+            padding: 14px 16px;
+            border-radius: 14px;
+            background:
+                radial-gradient(circle at 18% 20%, rgba(255,255,255,0.22), transparent 30%),
+                linear-gradient(105deg, var(--app-primary) 0%, #B23C8F 48%, var(--app-accent) 100%);
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             text-align: center;
             text-decoration: none !important;
-            font-weight: 700;
-            box-shadow: 0 8px 20px rgba(134, 40, 128, 0.22);
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            box-shadow: 0 12px 26px rgba(134, 40, 128, 0.18);
+            border: 1px solid rgba(255,255,255,0.18);
         }}
         .feedback-sidebar-button:hover {{
-            filter: brightness(1.04);
+            transform: translateY(-1px);
+            filter: brightness(1.03);
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
             text-decoration: none !important;
@@ -450,7 +457,6 @@ def render_feedback_button() -> None:
     st.sidebar.markdown(
         f"""
         <div class="feedback-sidebar">
-            <div class="feedback-sidebar-label">Masukan aplikasi</div>
             <a class="feedback-sidebar-button" href="{feedback_url}" target="_blank" rel="noopener noreferrer">
                 Kirim Saran
             </a>
