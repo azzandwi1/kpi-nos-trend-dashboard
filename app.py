@@ -16,6 +16,9 @@ OVERTIME_OVER_ONTIME_KPIS = {
     'tingkat return',
     'tingkat investigasi kalah',
 }
+ODS_APPROVED_OVER_TOTAL_KPIS = {
+    'on time performance ods',
+}
 
 COLOR_BG = '#F2F3F5'
 COLOR_CARD = '#FFFFFF'
@@ -272,23 +275,32 @@ def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
     current_over_time = pd.to_numeric(df['Current OVER TIME'], errors='coerce')
     total_os = pd.to_numeric(df['TOTAL OS'], errors='coerce')
     current_total_os = pd.to_numeric(df['Current TOTAL OS'], errors='coerce')
+    approved_count = (
+        pd.to_numeric(df['Approved Count'], errors='coerce')
+        if 'Approved Count' in df.columns
+        else pd.Series(0, index=df.index, dtype='float64')
+    )
 
     denom_real = on_time + over_time
     denom_note = on_time + current_over_time
 
     real_pct = on_time.div(denom_real.where(denom_real.ne(0)))
     note_pct = on_time.div(denom_note.where(denom_note.ne(0)))
+    note_ods_pct = (on_time + approved_count).div(denom_real.where(denom_real.ne(0)))
     overtime_rate_real = over_time.div(on_time.where(on_time.ne(0)))
     overtime_rate_note = current_over_time.div(on_time.where(on_time.ne(0)))
 
     df['ON TIME'] = on_time
     df['OVER TIME'] = over_time
     df['Current OVER TIME'] = current_over_time
+    df['Approved Count'] = approved_count
     df['TOTAL OS'] = total_os
     df['Current TOTAL OS'] = current_total_os
     df['RealDenom'] = denom_real
     df['NoteDenom'] = denom_note
     df['CalculationType'] = 'ontime_over_total'
+    ods_approved_mask = df['KPI INDICES'].astype(str).str.strip().str.lower().isin(ODS_APPROVED_OVER_TOTAL_KPIS)
+    df.loc[ods_approved_mask, 'CalculationType'] = 'ods_approved_over_total'
     special_pct_mask = df['KPI INDICES'].astype(str).str.strip().str.lower().isin(OVERTIME_OVER_ONTIME_KPIS)
     df.loc[special_pct_mask, 'CalculationType'] = 'overtime_over_ontime'
 
@@ -297,6 +309,8 @@ def load_data(master_url: str, formatting_path: Path) -> pd.DataFrame:
     pct_mask = df['MetricType'].eq('percentage')
     df.loc[pct_mask, 'RealKPI'] = real_pct[pct_mask]
     df.loc[pct_mask, 'NoteUserKPI'] = note_pct[pct_mask]
+    ods_approved_mask = pct_mask & ods_approved_mask
+    df.loc[ods_approved_mask, 'NoteUserKPI'] = note_ods_pct[ods_approved_mask]
     special_pct_mask = pct_mask & special_pct_mask
     df.loc[special_pct_mask, 'RealKPI'] = overtime_rate_real[special_pct_mask]
     df.loc[special_pct_mask, 'NoteUserKPI'] = overtime_rate_note[special_pct_mask]
@@ -314,22 +328,32 @@ def aggregate_metrics(df: pd.DataFrame, group_cols: list[str], metric_type: str)
             'CalculationType' in df.columns
             and df['CalculationType'].eq('overtime_over_ontime').all()
         )
+        is_ods_approved = (
+            'CalculationType' in df.columns
+            and df['CalculationType'].eq('ods_approved_over_total').all()
+        )
         if grouped is None:
             agg = pd.DataFrame(
                 {
                     'ON TIME': [df['ON TIME'].sum()],
                     'OVER TIME': [df['OVER TIME'].sum()],
                     'Current OVER TIME': [df['Current OVER TIME'].sum()],
+                    'Approved Count': [df['Approved Count'].sum()],
                     'RealDenom': [df['RealDenom'].sum()],
                     'NoteDenom': [df['NoteDenom'].sum()],
                 }
             )
         else:
-            agg = grouped[['ON TIME', 'OVER TIME', 'Current OVER TIME', 'RealDenom', 'NoteDenom']].sum()
+            agg = grouped[['ON TIME', 'OVER TIME', 'Current OVER TIME', 'Approved Count', 'RealDenom', 'NoteDenom']].sum()
 
         if is_overtime_rate:
             agg['RealKPI'] = agg['OVER TIME'].div(agg['ON TIME'].where(agg['ON TIME'].ne(0)))
             agg['NoteUserKPI'] = agg['Current OVER TIME'].div(agg['ON TIME'].where(agg['ON TIME'].ne(0)))
+        elif is_ods_approved:
+            agg['RealKPI'] = agg['ON TIME'].div(agg['RealDenom'].where(agg['RealDenom'].ne(0)))
+            agg['NoteUserKPI'] = (agg['ON TIME'] + agg['Approved Count']).div(
+                agg['RealDenom'].where(agg['RealDenom'].ne(0))
+            )
         else:
             agg['RealKPI'] = agg['ON TIME'].div(agg['RealDenom'].where(agg['RealDenom'].ne(0)))
             agg['NoteUserKPI'] = agg['ON TIME'].div(agg['NoteDenom'].where(agg['NoteDenom'].ne(0)))
